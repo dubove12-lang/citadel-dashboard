@@ -15,12 +15,10 @@ w3 = Web3(Web3.HTTPProvider(ARB_RPC))
 
 POSITION_MANAGER = w3.to_checksum_address("0xC36442b4a4522E871399CD717aBDD847Ab11FE88")
 FACTORY_ADDRESS = w3.to_checksum_address("0x1F98431c8aD98523631AE4a59f267346ea31F984")
-POOL_ID = 4931983  # tvoje LP NFT ID
+POOL_ID = 4931983
 
 HL_WALLET = "0x689fEBfd1EA5Af9E70B86d8a29362eC119C289B0"
 HL_API = "https://api.hyperliquid.xyz/info"
-
-CSV_FILE = "data.csv"
 
 # =========================
 # ABI
@@ -118,6 +116,32 @@ def get_lp_amounts_and_value(token_id):
     pool = w3.eth.contract(address=pool_address, abi=pool_abi)
 
     sqrtPriceX96, tick, *_ = pool.functions.slot0().call()
+
+    # decimals + symboly
+    t0 = w3.eth.contract(address=token0, abi=erc20_abi)
+    t1 = w3.eth.contract(address=token1, abi=erc20_abi)
+    dec0 = t0.functions.decimals().call()
+    dec1 = t1.functions.decimals().call()
+    sym0 = t0.functions.symbol().call()
+    sym1 = t1.functions.symbol().call()
+
+    # aktuálna cena ETH
+    price = 1.0001 ** tick
+    price *= 10 ** (dec0 - dec1)
+    if sym0.upper() in ["WETH", "ETH"]:
+        eth_price = price
+    else:
+        eth_price = 1 / price
+
+    # spodný a horný range
+    lower = 1.0001 ** tickLower
+    upper = 1.0001 ** tickUpper
+    lower_price = lower * 10 ** (dec0 - dec1)
+    upper_price = upper * 10 ** (dec0 - dec1)
+    if sym0.upper() not in ["WETH", "ETH"]:
+        lower_price, upper_price = 1/lower_price, 1/upper_price
+
+    # amounts v pooli
     sqrtPrice = sqrtPriceX96 / (1 << 96)
     sqrtPriceA = math.sqrt(1.0001 ** tickLower)
     sqrtPriceB = math.sqrt(1.0001 ** tickUpper)
@@ -132,31 +156,18 @@ def get_lp_amounts_and_value(token_id):
         amount0 = 0
         amount1 = liquidity * (sqrtPriceB - sqrtPriceA)
 
-    # decimals + symboly
-    t0 = w3.eth.contract(address=token0, abi=erc20_abi)
-    t1 = w3.eth.contract(address=token1, abi=erc20_abi)
-    dec0 = t0.functions.decimals().call()
-    dec1 = t1.functions.decimals().call()
-    sym0 = t0.functions.symbol().call()
-    sym1 = t1.functions.symbol().call()
-
     amount0 /= 10 ** dec0
     amount1 /= 10 ** dec1
 
-    # cena medzi token0 a token1
-    price0_1 = (sqrtPriceX96 / (1 << 96)) ** 2 * 10**(dec0 - dec1)
-
     if sym0.upper() in ["WETH", "ETH"]:
         eth_amt, usdc_amt = amount0, amount1
-        eth_price = price0_1
     else:
         eth_amt, usdc_amt = amount1, amount0
-        eth_price = 1 / price0_1
 
     eth_value_usd = eth_amt * eth_price
     total_value_usd = eth_value_usd + usdc_amt
 
-    # === unclaimed fees cez simulovaný collect ===
+    # fees
     pos_collect = w3.eth.contract(address=POSITION_MANAGER, abi=collect_abi)
     try:
         fees0, fees1 = pos_collect.functions.collect((
@@ -176,81 +187,112 @@ def get_lp_amounts_and_value(token_id):
     except Exception:
         fees_value_usd = 0.0
 
-    return eth_amt, usdc_amt, eth_value_usd, total_value_usd, fees_value_usd
-
+    return eth_amt, usdc_amt, eth_value_usd, total_value_usd, fees_value_usd, lower_price, upper_price, eth_price
 
 def get_hl_account_value(wallet):
     body = {"type": "clearinghouseState", "user": wallet}
     resp = requests.post(HL_API, json=body).json()
     return float(resp["marginSummary"]["accountValue"])
 
+# =========================
+# DASHBOARD RENDER
+# =========================
+def render_dashboard(title, csv_file):
+    st.markdown(
+        """
+        <div style="border: 4px solid black; border-radius: 10px; padding: 15px; margin: 10px;">
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.subheader(title)
+
+    # načítaj CSV ak existuje
+    if os.path.exists(csv_file):
+        st.session_state[csv_file] = pd.read_csv(csv_file, parse_dates=["time"])
+    else:
+        st.session_state[csv_file] = pd.DataFrame(columns=["time", "lp_value", "hl_value", "total_value", "apr"])
+
+    # dáta
+    eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val, lower_price, upper_price, eth_price = get_lp_amounts_and_value(POOL_ID)
+    hl_val = get_hl_account_value(HL_WALLET)
+
+    lp_val_total = lp_val + fee_val
+    total_val = lp_val_total + hl_val
+
+    # APR
+    apr = None
+    if len(st.session_state[csv_file]) > 0:
+        prev_val = st.session_state[csv_file]["total_value"].iloc[-1]
+        if prev_val > 0:
+            change = (total_val - prev_val) / prev_val
+            apr = change * 525600 * 100
+
+    new_row = pd.DataFrame([{
+        "time": datetime.datetime.now(),
+        "lp_value": lp_val_total,
+        "hl_value": hl_val,
+        "total_value": total_val,
+        "apr": apr
+    }])
+
+    st.session_state[csv_file] = pd.concat(
+        [st.session_state[csv_file], new_row],
+        ignore_index=True
+    )
+
+    st.session_state[csv_file].to_csv(csv_file, index=False)
+
+    # graf
+    st.line_chart(
+        st.session_state[csv_file].set_index("time")[["lp_value", "hl_value", "total_value"]],
+        height=300
+    )
+
+    # tabuľka
+    metrics = [
+        ["ETH v LP", f"{eth_amt:.6f} ETH (≈ ${eth_value_usd:.2f})"],
+        ["USDC v LP", f"{usdc_amt:.2f} USDC"],
+        ["Unclaimed Fees", f"${fee_val:.2f}"],
+        ["Spodný range (USD za 1 ETH)", f"${lower_price:.2f}"],
+        ["Horný range (USD za 1 ETH)", f"${upper_price:.2f}"],
+        ["ETH cena (USD)", f"${eth_price:.2f}"],
+        ["LP celkom (s fees)", f"${lp_val_total:.2f}"],
+        ["HL účet", f"${hl_val:.2f}"],
+        ["Portfólio celkom", f"${total_val:.2f}"],
+        ["Odhadovaný APR", f"{apr:.2f}%" if apr else "N/A"]
+    ]
+
+    st.markdown("📋 **Prehľad portfólia**")
+    for i, (m, v) in enumerate(metrics):
+        if i in [2, 5, 8]:
+            st.markdown("---")
+        if i == 9:
+            st.markdown(f"**{m}: {v}**")
+        else:
+            st.write(f"{m}: {v}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # STREAMLIT APP
 # =========================
 st.set_page_config(page_title="Krypto Dashboard", layout="wide")
-st.title("📊 LP + HL Value Tracker")
+st.title("📊 Multi Dashboard (4x)")
 
-# pri štarte načítaj CSV ak existuje
-if os.path.exists(CSV_FILE):
-    st.session_state["data"] = pd.read_csv(CSV_FILE, parse_dates=["time"])
-else:
-    st.session_state["data"] = pd.DataFrame(columns=["time", "lp_value", "hl_value", "total_value", "apr"])
+col1, col2 = st.columns(2)
+with col1:
+    render_dashboard("📈 Dashboard 1", "data1.csv")
+with col2:
+    render_dashboard("📈 Dashboard 2", "data2.csv")
 
-# dáta
-eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val = get_lp_amounts_and_value(POOL_ID)
-hl_val = get_hl_account_value(HL_WALLET)
+col3, col4 = st.columns(2)
+with col3:
+    render_dashboard("📈 Dashboard 3", "data3.csv")
+with col4:
+    render_dashboard("📈 Dashboard 4", "data4.csv")
 
-lp_val_total = lp_val + fee_val
-total_val = lp_val_total + hl_val
-
-# APR z posledného kroku
-apr = None
-if len(st.session_state["data"]) > 0:
-    prev_val = st.session_state["data"]["total_value"].iloc[-1]
-    if prev_val > 0:
-        change = (total_val - prev_val) / prev_val
-        apr = change * 525600 * 100  # % p.a.
-
-new_row = pd.DataFrame([{
-    "time": datetime.datetime.now(),
-    "lp_value": lp_val_total,
-    "hl_value": hl_val,
-    "total_value": total_val,
-    "apr": apr
-}])
-
-st.session_state["data"] = pd.concat(
-    [st.session_state["data"], new_row],
-    ignore_index=True
-)
-
-# zapíš do CSV
-st.session_state["data"].to_csv(CSV_FILE, index=False)
-
-# graf
-st.line_chart(
-    st.session_state["data"].set_index("time")[["lp_value", "hl_value", "total_value"]],
-    height=500
-)
-
-# metriky
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("ETH v LP", f"{eth_amt:.6f} ETH", f"≈ ${eth_value_usd:.2f}")
-col2.metric("USDC v LP", f"{usdc_amt:.2f} USDC")
-col3.metric("ETH hodnota v USD", f"${eth_value_usd:.2f}")
-col4.metric("LP celkom (s fees)", f"${lp_val_total:.2f}")
-col5.metric("Unclaimed Fees", f"${fee_val:.2f}")
-
-# HL + Total
-col6, col7 = st.columns(2)
-col6.metric("HL účet", f"${hl_val:.2f}")
-col7.metric("Portfólio celkom", f"${total_val:.2f}")
-
-# priemerné APR
-if st.session_state["data"]["apr"].notna().any():
-    avg_apr = st.session_state["data"]["apr"].mean()
-    st.metric("Odhadovaný APR", f"{avg_apr:.2f}%")
-
-# Auto-refresh každú minútu
+# Auto-refresh
 st_autorefresh(interval=60 * 1000, key="datarefresh")
+
+
