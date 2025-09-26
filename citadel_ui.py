@@ -5,6 +5,7 @@ import math
 import pandas as pd
 import datetime
 from streamlit_autorefresh import st_autorefresh
+import os
 
 # =========================
 # KONFIGURÁCIA
@@ -18,6 +19,8 @@ POOL_ID = 4931983  # tvoje LP NFT ID
 
 HL_WALLET = "0x689fEBfd1EA5Af9E70B86d8a29362eC119C289B0"
 HL_API = "https://api.hyperliquid.xyz/info"
+
+CSV_FILE = "data.csv"
 
 # =========================
 # ABI
@@ -188,7 +191,10 @@ def get_hl_account_value(wallet):
 st.set_page_config(page_title="Krypto Dashboard", layout="wide")
 st.title("📊 LP + HL Value Tracker")
 
-if "data" not in st.session_state:
+# pri štarte načítaj CSV ak existuje
+if os.path.exists(CSV_FILE):
+    st.session_state["data"] = pd.read_csv(CSV_FILE, parse_dates=["time"])
+else:
     st.session_state["data"] = pd.DataFrame(columns=["time", "lp_value", "hl_value", "total_value", "apr"])
 
 # dáta
@@ -218,6 +224,9 @@ st.session_state["data"] = pd.concat(
     [st.session_state["data"], new_row],
     ignore_index=True
 )
+
+# zapíš do CSV
+st.session_state["data"].to_csv(CSV_FILE, index=False)
 
 # graf
 st.line_chart(
