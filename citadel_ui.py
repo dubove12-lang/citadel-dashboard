@@ -220,13 +220,18 @@ def render_dashboard(title, csv_file):
     lp_val_total = lp_val + fee_val
     total_val = lp_val_total + hl_val
 
-    # APR
+    # === APR od štartu trackovania ===
     apr = None
-    if len(st.session_state[csv_file]) > 0:
-        prev_val = st.session_state[csv_file]["total_value"].iloc[-1]
-        if prev_val > 0:
-            change = (total_val - prev_val) / prev_val
-            apr = change * 525600 * 100
+    if len(st.session_state[csv_file]) > 1:
+        start_val = st.session_state[csv_file]["total_value"].iloc[0]
+        start_time = st.session_state[csv_file]["time"].iloc[0]
+        now = datetime.datetime.now()
+
+        if start_val > 0:
+            total_change = (total_val - start_val) / start_val
+            elapsed = (now - pd.to_datetime(start_time)).total_seconds() / 86400  # dni
+            if elapsed > 0:
+                apr = total_change * (365 / elapsed) * 100
 
     new_row = pd.DataFrame([{
         "time": datetime.datetime.now(),
@@ -260,7 +265,7 @@ def render_dashboard(title, csv_file):
         ["LP celkom (s fees)", f"${lp_val_total:.2f}"],
         ["HL účet", f"${hl_val:.2f}"],
         ["Portfólio celkom", f"${total_val:.2f}"],
-        ["Odhadovaný APR", f"{apr:.2f}%" if apr else "N/A"]
+        ["Odhadovaný APR (od štartu)", f"{apr:.2f}%" if apr else "N/A"]
     ]
 
     st.markdown("📋 **Prehľad portfólia**")
@@ -294,5 +299,3 @@ with col4:
 
 # Auto-refresh
 st_autorefresh(interval=60 * 1000, key="datarefresh")
-
-
