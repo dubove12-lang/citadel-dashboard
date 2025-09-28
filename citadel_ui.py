@@ -15,9 +15,7 @@ w3 = Web3(Web3.HTTPProvider(ARB_RPC))
 
 POSITION_MANAGER = w3.to_checksum_address("0xC36442b4a4522E871399CD717aBDD847Ab11FE88")
 FACTORY_ADDRESS = w3.to_checksum_address("0x1F98431c8aD98523631AE4a59f267346ea31F984")
-POOL_ID = 4931983
 
-HL_WALLET = "0x689fEBfd1EA5Af9E70B86d8a29362eC119C289B0"
 HL_API = "https://api.hyperliquid.xyz/info"
 
 # =========================
@@ -197,7 +195,7 @@ def get_hl_account_value(wallet):
 # =========================
 # DASHBOARD RENDER
 # =========================
-def render_dashboard(title, csv_file):
+def render_dashboard(title, csv_file, pool_id, hl_wallet):
     st.markdown(
         """
         <div style="border: 4px solid black; border-radius: 10px; padding: 15px; margin: 10px;">
@@ -214,24 +212,19 @@ def render_dashboard(title, csv_file):
         st.session_state[csv_file] = pd.DataFrame(columns=["time", "lp_value", "hl_value", "total_value", "apr"])
 
     # dáta
-    eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val, lower_price, upper_price, eth_price = get_lp_amounts_and_value(POOL_ID)
-    hl_val = get_hl_account_value(HL_WALLET)
+    eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val, lower_price, upper_price, eth_price = get_lp_amounts_and_value(pool_id)
+    hl_val = get_hl_account_value(hl_wallet)
 
     lp_val_total = lp_val + fee_val
     total_val = lp_val_total + hl_val
 
-    # === APR od štartu trackovania ===
+    # priemerný APR z priemerných 5-min zmien
+    df = st.session_state[csv_file].copy()
     apr = None
-    if len(st.session_state[csv_file]) > 1:
-        start_val = st.session_state[csv_file]["total_value"].iloc[0]
-        start_time = st.session_state[csv_file]["time"].iloc[0]
-        now = datetime.datetime.now()
-
-        if start_val > 0:
-            total_change = (total_val - start_val) / start_val
-            elapsed = (now - pd.to_datetime(start_time)).total_seconds() / 86400  # dni
-            if elapsed > 0:
-                apr = total_change * (365 / elapsed) * 100
+    if len(df) > 1:
+        df["change"] = df["total_value"].pct_change()
+        avg_change = df["change"].mean()
+        apr = avg_change * 12 * 24 * 365 * 100
 
     new_row = pd.DataFrame([{
         "time": datetime.datetime.now(),
@@ -265,7 +258,7 @@ def render_dashboard(title, csv_file):
         ["LP celkom (s fees)", f"${lp_val_total:.2f}"],
         ["HL účet", f"${hl_val:.2f}"],
         ["Portfólio celkom", f"${total_val:.2f}"],
-        ["Odhadovaný APR (od štartu)", f"{apr:.2f}%" if apr else "N/A"]
+        ["Odhadovaný APR", f"{apr:.2f}%" if apr else "N/A"]
     ]
 
     st.markdown("📋 **Prehľad portfólia**")
@@ -283,19 +276,21 @@ def render_dashboard(title, csv_file):
 # STREAMLIT APP
 # =========================
 st.set_page_config(page_title="Krypto Dashboard", layout="wide")
-st.title("📊 Multi Dashboard (4x)")
+st.title("📊 Citadel MVP Strategies")
 
+# tu si vieš nastaviť 4 rôzne pooly a HL peňaženky
 col1, col2 = st.columns(2)
 with col1:
-    render_dashboard("📈 Dashboard 1", "data1.csv")
+    render_dashboard("📈 S1 +-10%, 1% order step", "data1.csv", pool_id=4931983, hl_wallet="0x689fEBfd1EA5Af9E70B86d8a29362eC119C289B0")
 with col2:
-    render_dashboard("📈 Dashboard 2", "data2.csv")
+    render_dashboard("📈 S2 +-10%, 0,5% order step", "data2.csv", pool_id=1234567, hl_wallet="0x0000000000000000000000000000000000000000")
 
 col3, col4 = st.columns(2)
 with col3:
-    render_dashboard("📈 Dashboard 3", "data3.csv")
+    render_dashboard("📈 S3 +-5%, 0,5% order step", "data3.csv", pool_id=2345678, hl_wallet="0x0000000000000000000000000000000000000000")
 with col4:
-    render_dashboard("📈 Dashboard 4", "data4.csv")
+    render_dashboard("📈 S4 +-5%, 0,25% order step", "data4.csv", pool_id=3456789, hl_wallet="0x0000000000000000000000000000000000000000")
 
-# Auto-refresh
-st_autorefresh(interval=60 * 1000, key="datarefresh")
+# Auto-refresh každých 5 minút
+st_autorefresh(interval=5 * 60 * 1000, key="datarefresh")
+
