@@ -283,7 +283,7 @@ col1, col2 = st.columns(2)
 with col1:
     render_dashboard("📈 S1 +-10%, 1% order step", "data1.csv", pool_id=4931983, hl_wallet="0x689fEBfd1EA5Af9E70B86d8a29362eC119C289B0")
 with col2:
-    render_dashboard("📈 S2 +-10%, 0,5% order step", "data2.csv", pool_id=1234567, hl_wallet="0x0000000000000000000000000000000000000000")
+    render_dashboard("📈 S2 +-10%, 0,5% order step", "data2.csv", pool_id=4939821, hl_wallet="0xD20C05AF4C8e8aF10ad7504E1F4eE129F032C85e")
 
 col3, col4 = st.columns(2)
 with col3:
