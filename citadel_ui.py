@@ -281,13 +281,13 @@ st.title("📊 Citadel MVP Strategies")
 # tu si vieš nastaviť 4 rôzne pooly a HL peňaženky
 col1, col2 = st.columns(2)
 with col1:
-    render_dashboard("📈 S1 +-10%, 1% order step", "data1.csv", pool_id=4942006, hl_wallet="0x37945bd99Be0D58CdD79aA6C760aA69062917442")
+    render_dashboard("📈 S1 +-10%, 1% order step", "data1.csv", pool_id=4942551, hl_wallet="0x37945bd99Be0D58CdD79aA6C760aA69062917442")
 with col2:
     render_dashboard("📈 S2 +-10%, 0,5% order step", "data2.csv", pool_id=4942015, hl_wallet="0xD20C05AF4C8e8aF10ad7504E1F4eE129F032C85e")
 
 col3, col4 = st.columns(2)
 with col3:
-    render_dashboard("📈 S3 +-5%, 0,5% order step", "data3.csv", pool_id=4942024, hl_wallet="0x78067440372b4d37982a9F38D2c27a7cBB09a981")
+    render_dashboard("📈 S3 +-5%, 0,5% order step", "data3.csv", pool_id=4942575, hl_wallet="0x78067440372b4d37982a9F38D2c27a7cBB09a981")
 with col4:
     render_dashboard("📈 S4 +-5%, 0,25% order step", "data4.csv", pool_id=4942031, hl_wallet="0xf1C43B9F641CB4BCa267ef7de776661e401A57E5")
 
