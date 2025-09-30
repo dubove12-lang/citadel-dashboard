@@ -311,7 +311,7 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
 
     st.markdown("📋 **Prehľad portfólia**")
     for i, (m, v) in enumerate(metrics):
-        if i in [2, 5, 9]:
+        if i in [2, 5, 10]:
             st.markdown("---")
         if i == 11:
             st.markdown(f"**{m}: {v}**")
@@ -329,9 +329,9 @@ st.title("📊 Citadel MVP Strategies")
 
 col1, col2 = st.columns(2)
 with col1:
-    render_dashboard("📈 S1 +-10%, 2% order step", "data1.csv", pool_id=4945248, hl_wallet="0x37945bd99Be0D58CdD79aA6C760aA69062917442")
+    render_dashboard("📈 S1 +-10%, 2% order step", "data1.csv", pool_id=4945714, hl_wallet="0x37945bd99Be0D58CdD79aA6C760aA69062917442")
 with col2:
-    render_dashboard("📈 S3 +-5%, 1% order step", "data3.csv", pool_id=4945259, hl_wallet="0x78067440372b4d37982a9F38D2c27a7cBB09a981")
+    render_dashboard("📈 S3 +-5%, 1% order step", "data3.csv", pool_id=4945719, hl_wallet="0x78067440372b4d37982a9F38D2c27a7cBB09a981")
 
 # Auto-refresh každých 5 minút
 st_autorefresh(interval=5 * 60 * 1000, key="datarefresh")
