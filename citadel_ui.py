@@ -1,3 +1,4 @@
+
 import streamlit as st
 import requests
 from web3 import Web3
@@ -224,9 +225,12 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
 
     st.subheader(title)
 
-    # načítaj CSV ak existuje
+    # načítaj CSV ak existuje a doplň chýbajúce stĺpce
     if os.path.exists(csv_file):
         st.session_state[csv_file] = pd.read_csv(csv_file, parse_dates=["time"])
+        for col in ["hl_fees", "hl_trades", "hl_fees_base", "hl_trades_base"]:
+            if col not in st.session_state[csv_file].columns:
+                st.session_state[csv_file][col] = 0
     else:
         st.session_state[csv_file] = pd.DataFrame(columns=[
             "time", "lp_value", "hl_value", "total_value", "apr",
