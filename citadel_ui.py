@@ -229,7 +229,10 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
     if os.path.exists(csv_file):
         st.session_state[csv_file] = pd.read_csv(csv_file, parse_dates=["time"])
     else:
-        st.session_state[csv_file] = pd.DataFrame(columns=["time", "lp_value", "hl_value", "total_value", "apr"])
+        st.session_state[csv_file] = pd.DataFrame(columns=[
+            "time", "lp_value", "hl_value", "total_value", "apr", "hl_fees", "hl_trades"
+        ])
+
 
     # dáta
     eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val, lower_price, upper_price, eth_price = get_lp_amounts_and_value(pool_id)
@@ -237,18 +240,19 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
 
     # total fees od začiatku účtu
     hl_fees_total = get_hl_fees(hl_wallet)
- 
-
-    # inicializuj baseline pri prvom spustení
-    baseline_key = f"baseline_fees_{hl_wallet}"
-    if baseline_key not in st.session_state:
-        st.session_state[baseline_key] = hl_fees_total
-
-    # zobraz iba fees od momentu spustenia
-    hl_fees = 1.8 + (hl_fees_total - st.session_state[baseline_key])
-
-    
     hl_trades_total = get_hl_trades(hl_wallet)
+
+    if len(st.session_state[csv_file]) > 0:
+        # vezmeme poslednú hodnotu z CSV
+        prev_fees = st.session_state[csv_file]["hl_fees"].iloc[-1]
+        prev_trades = st.session_state[csv_file]["hl_trades"].iloc[-1]
+    else:
+        prev_fees = 0
+        prev_trades = 0
+
+    hl_fees = hl_fees_total
+    hl_trades = hl_trades_total
+
 
     baseline_trades_key = f"baseline_trades_{hl_wallet}"
     if baseline_trades_key not in st.session_state:
@@ -277,6 +281,7 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
         "hl_fees": hl_fees,
         "hl_trades": hl_trades
     }])
+
 
 
     st.session_state[csv_file] = pd.concat(
