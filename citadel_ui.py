@@ -202,6 +202,16 @@ def get_hl_fees(wallet):
     total_fees = sum(float(f.get("fee", 0)) for f in fills)
     return total_fees
 
+def get_hl_trades(wallet):
+    body = {"type": "userFills", "user": wallet}
+    resp = requests.post(HL_API, json=body).json()
+    if isinstance(resp, list):
+        fills = resp
+    else:
+        fills = resp.get("fills", [])
+    return len(fills)
+
+
 # =========================
 # DASHBOARD RENDER
 # =========================
@@ -237,6 +247,16 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
     # zobraz iba fees od momentu spustenia
     hl_fees = 1.8 + (hl_fees_total - st.session_state[baseline_key])
 
+    
+    hl_trades_total = get_hl_trades(hl_wallet)
+
+    baseline_trades_key = f"baseline_trades_{hl_wallet}"
+    if baseline_trades_key not in st.session_state:
+        st.session_state[baseline_trades_key] = hl_trades_total
+
+    hl_trades = hl_trades_total - st.session_state[baseline_trades_key]
+
+
     lp_val_total = lp_val + fee_val
     total_val = lp_val_total + hl_val
 
@@ -270,6 +290,8 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
     )
 
     # tabuľka
+    
+
     metrics = [
         ["ETH v LP", f"{eth_amt:.6f} ETH (≈ ${eth_value_usd:.2f})"],
         ["USDC v LP", f"{usdc_amt:.2f} USDC"],
@@ -280,13 +302,15 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
         ["LP celkom (s fees)", f"${lp_val_total:.2f}"],
         ["HL účet", f"${hl_val:.2f}"],
         ["HL fees (spálené)", f"${hl_fees:.2f}"],
+        ["HL trades (počet)", hl_trades],
         ["Portfólio celkom", f"${total_val:.2f}"],
         ["Odhadovaný APR", f"{apr:.2f}%" if apr else "N/A"]
     ]
 
+
     st.markdown("📋 **Prehľad portfólia**")
     for i, (m, v) in enumerate(metrics):
-        if i in [2, 5, 9]:
+        if i in [2, 5, 10]:
             st.markdown("---")
         if i == 10:
             st.markdown(f"**{m}: {v}**")
@@ -312,5 +336,3 @@ with col3:
 
 # Auto-refresh každých 5 minút
 st_autorefresh(interval=5 * 60 * 1000, key="datarefresh")
-
-
