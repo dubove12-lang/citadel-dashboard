@@ -192,20 +192,15 @@ def get_hl_account_value(wallet):
     resp = requests.post(HL_API, json=body).json()
     return float(resp["marginSummary"]["accountValue"])
 
-# 🔥 NOVÁ FUNKCIA: výpočet celkových fees
 def get_hl_fees(wallet):
     body = {"type": "userFills", "user": wallet}
     resp = requests.post(HL_API, json=body).json()
-
-    # API vracia list fillov
     if isinstance(resp, list):
         fills = resp
     else:
         fills = resp.get("fills", [])
-
     total_fees = sum(float(f.get("fee", 0)) for f in fills)
     return total_fees
-
 
 # =========================
 # DASHBOARD RENDER
@@ -229,7 +224,17 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
     # dáta
     eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val, lower_price, upper_price, eth_price = get_lp_amounts_and_value(pool_id)
     hl_val = get_hl_account_value(hl_wallet)
-    hl_fees = get_hl_fees(hl_wallet)
+
+    # total fees od začiatku účtu
+    hl_fees_total = get_hl_fees(hl_wallet)
+
+    # inicializuj baseline pri prvom spustení
+    baseline_key = f"baseline_fees_{hl_wallet}"
+    if baseline_key not in st.session_state:
+        st.session_state[baseline_key] = hl_fees_total
+
+    # zobraz iba fees od momentu spustenia
+    hl_fees = hl_fees_total - st.session_state[baseline_key]
 
     lp_val_total = lp_val + fee_val
     total_val = lp_val_total + hl_val
@@ -280,7 +285,7 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
 
     st.markdown("📋 **Prehľad portfólia**")
     for i, (m, v) in enumerate(metrics):
-        if i in [3, 6, 9]:
+        if i in [2, 5, 9]:
             st.markdown("---")
         if i == 10:
             st.markdown(f"**{m}: {v}**")
@@ -288,6 +293,7 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
             st.write(f"{m}: {v}")
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # =========================
 # STREAMLIT APP
