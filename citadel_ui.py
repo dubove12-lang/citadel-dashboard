@@ -211,7 +211,6 @@ def get_hl_trades(wallet):
         fills = resp.get("fills", [])
     return len(fills)
 
-
 # =========================
 # DASHBOARD RENDER
 # =========================
@@ -230,36 +229,29 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
         st.session_state[csv_file] = pd.read_csv(csv_file, parse_dates=["time"])
     else:
         st.session_state[csv_file] = pd.DataFrame(columns=[
-            "time", "lp_value", "hl_value", "total_value", "apr", "hl_fees", "hl_trades"
+            "time", "lp_value", "hl_value", "total_value", "apr",
+            "hl_fees", "hl_trades", "hl_fees_base", "hl_trades_base"
         ])
-
 
     # dáta
     eth_amt, usdc_amt, eth_value_usd, lp_val, fee_val, lower_price, upper_price, eth_price = get_lp_amounts_and_value(pool_id)
     hl_val = get_hl_account_value(hl_wallet)
 
-    # total fees od začiatku účtu
+    # HL fees + trades total
     hl_fees_total = get_hl_fees(hl_wallet)
     hl_trades_total = get_hl_trades(hl_wallet)
 
-    if len(st.session_state[csv_file]) > 0:
-        # vezmeme poslednú hodnotu z CSV
-        prev_fees = st.session_state[csv_file]["hl_fees"].iloc[-1]
-        prev_trades = st.session_state[csv_file]["hl_trades"].iloc[-1]
+    # baseline len raz
+    if len(st.session_state[csv_file]) == 0:
+        hl_fees_base = hl_fees_total
+        hl_trades_base = hl_trades_total
     else:
-        prev_fees = 0
-        prev_trades = 0
+        hl_fees_base = st.session_state[csv_file]["hl_fees_base"].iloc[0]
+        hl_trades_base = st.session_state[csv_file]["hl_trades_base"].iloc[0]
 
-    hl_fees = hl_fees_total
-    hl_trades = hl_trades_total
-
-
-    baseline_trades_key = f"baseline_trades_{hl_wallet}"
-    if baseline_trades_key not in st.session_state:
-        st.session_state[baseline_trades_key] = hl_trades_total
-
-    hl_trades = hl_trades_total - st.session_state[baseline_trades_key]
-
+    # rozdiel od baseline
+    hl_fees = hl_fees_total - hl_fees_base
+    hl_trades = hl_trades_total - hl_trades_base
 
     lp_val_total = lp_val + fee_val
     total_val = lp_val_total + hl_val
@@ -279,10 +271,10 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
         "total_value": total_val,
         "apr": apr,
         "hl_fees": hl_fees,
-        "hl_trades": hl_trades
+        "hl_trades": hl_trades,
+        "hl_fees_base": hl_fees_base,
+        "hl_trades_base": hl_trades_base
     }])
-
-
 
     st.session_state[csv_file] = pd.concat(
         [st.session_state[csv_file], new_row],
@@ -298,8 +290,6 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
     )
 
     # tabuľka
-    
-
     metrics = [
         ["ETH v LP", f"{eth_amt:.6f} ETH (≈ ${eth_value_usd:.2f})"],
         ["USDC v LP", f"{usdc_amt:.2f} USDC"],
@@ -309,18 +299,17 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
         ["ETH cena (USD)", f"${eth_price:.2f}"],
         ["LP celkom (s fees)", f"${lp_val_total:.2f}"],
         ["HL účet", f"${hl_val:.2f}"],
-        ["HL fees (spálené)", f"${hl_fees:.2f}"],
-        ["HL trades (počet)", hl_trades],
+        ["HL fees (od štartu)", f"${hl_fees:.2f}"],
+        ["HL trades (od štartu)", f"{hl_trades}"],
         ["Portfólio celkom", f"${total_val:.2f}"],
         ["Odhadovaný APR", f"{apr:.2f}%" if apr else "N/A"]
     ]
 
-
     st.markdown("📋 **Prehľad portfólia**")
     for i, (m, v) in enumerate(metrics):
-        if i in [2, 5, 10]:
+        if i in [2, 5, 9]:
             st.markdown("---")
-        if i == 10:
+        if i == 11:
             st.markdown(f"**{m}: {v}**")
         else:
             st.write(f"{m}: {v}")
@@ -334,13 +323,11 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
 st.set_page_config(page_title="Krypto Dashboard", layout="wide")
 st.title("📊 Citadel MVP Strategies")
 
-# tu si vieš nastaviť 4 rôzne pooly a HL peňaženky
-col1, col3 = st.columns(2)
+col1, col2 = st.columns(2)
 with col1:
-    render_dashboard("📈 S1 +-10%, 2% order step", "data1.csv", pool_id=4945248, hl_wallet="0x37945bd99Be0D58CdD79aA6C760aA69062917442")
-
-with col3:
-    render_dashboard("📈 S3 +-5%, 1% order step", "data3.csv", pool_id=4945259, hl_wallet="0x78067440372b4d37982a9F38D2c27a7cBB09a981")
+    render_dashboard("📈 S1 +-10%, 2% order step", "data1.csv", pool_id=4942551, hl_wallet="0x37945bd99Be0D58CdD79aA6C760aA69062917442")
+with col2:
+    render_dashboard("📈 S3 +-5%, 1% order step", "data3.csv", pool_id=4942575, hl_wallet="0x78067440372b4d37982a9F38D2c27a7cBB09a981")
 
 # Auto-refresh každých 5 minút
 st_autorefresh(interval=5 * 60 * 1000, key="datarefresh")
