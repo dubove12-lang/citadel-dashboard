@@ -227,7 +227,7 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
 
     # total fees od začiatku účtu
     hl_fees_total = get_hl_fees(hl_wallet)
- FIXED_HL_FEES = 1.75
+  FIXED_HL_FEES = 1.75
 
     # inicializuj baseline pri prvom spustení
     baseline_key = f"baseline_fees_{hl_wallet}"
