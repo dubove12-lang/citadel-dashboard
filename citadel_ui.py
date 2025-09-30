@@ -273,8 +273,11 @@ def render_dashboard(title, csv_file, pool_id, hl_wallet):
         "lp_value": lp_val_total,
         "hl_value": hl_val,
         "total_value": total_val,
-        "apr": apr
+        "apr": apr,
+        "hl_fees": hl_fees,
+        "hl_trades": hl_trades
     }])
+
 
     st.session_state[csv_file] = pd.concat(
         [st.session_state[csv_file], new_row],
